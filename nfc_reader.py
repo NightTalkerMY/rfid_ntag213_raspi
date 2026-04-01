@@ -1,20 +1,21 @@
 import RPi.GPIO as GPIO
 from mfrc522 import MFRC522
+import time
 
 class NTAGReader:
     def __init__(self):
-        # Initialize the reader when the class is instantiated
         self.reader = MFRC522()
 
     def _get_crc(self, data):
-        """Safely handles the CRC calculation."""
         try:
             return self.reader.CalulateCRC(data)
         except AttributeError:
             return self.reader.CalculateCRC(data)
 
     def _select_ntag_7byte(self):
-        """Handles the 2-step Cascade Level 2 handshake."""
+        # Reset SPI comms before asking to clear any previous hanging states
+        self.reader.MFRC522_Init()
+        
         (status, TagType) = self.reader.MFRC522_Request(self.reader.PICC_REQIDL)
         if status != self.reader.MI_OK:
             return False, None
@@ -40,10 +41,8 @@ class NTAGReader:
         return False, None
 
     def _read_ntag_pages(self, page_addr):
-        """Bypasses strict 16-byte check, returns exactly 16 bytes."""
         cmd = [0x30, page_addr]
         cmd += self._get_crc(cmd)
-        
         (status, backData, backLen) = self.reader.MFRC522_ToCard(self.reader.PCD_TRANSCEIVE, cmd)
         
         if status == self.reader.MI_OK and backData:
@@ -52,10 +51,8 @@ class NTAGReader:
 
     @staticmethod
     def _decode_ndef_text(raw_bytes):
-        """Parses NDEF memory structure to extract clean Text records."""
         records = []
         idx = 0
-        
         try:
             while idx < len(raw_bytes):
                 if raw_bytes[idx] == 0xFE:
@@ -89,43 +86,47 @@ class NTAGReader:
                     idx += 2 + tlv_len
         except IndexError:
             pass
-            
         return records
 
-    def get_tag_data(self):
+    def get_tag_data(self, timeout_seconds=10.0):
         """
-        Public method to be called by FastAPI.
-        Performs a single read attempt and returns a dictionary.
+        Loops INTERNALLY for up to 10 seconds looking for a tag.
+        Returns data immediately if found, or a timeout status if not.
         """
-        success, full_uid = self._select_ntag_7byte()
+        start_time = time.time()
         
-        if not success:
-            return {"status": "no_tag_detected", "uid": None, "records": []}
+        # Keep looking until the timer runs out
+        while time.time() - start_time < timeout_seconds:
+            success, full_uid = self._select_ntag_7byte()
             
-        # Format the UID
-        tag_id = "-".join([str(i) for i in full_uid])
-        
-        # Read the memory chunks
-        chunk1 = self._read_ntag_pages(4)
-        chunk2 = self._read_ntag_pages(8)
-        chunk3 = self._read_ntag_pages(12)
-        
-        if chunk1 and chunk2 and chunk3:
-            full_memory = chunk1 + chunk2 + chunk3
-            extracted_records = self._decode_ndef_text(full_memory)
+            if success:
+                tag_id = "-".join([str(i) for i in full_uid])
+                
+                chunk1 = self._read_ntag_pages(4)
+                chunk2 = self._read_ntag_pages(8)
+                chunk3 = self._read_ntag_pages(12)
+                
+                if chunk1 and chunk2 and chunk3:
+                    full_memory = chunk1 + chunk2 + chunk3
+                    extracted_records = self._decode_ndef_text(full_memory)
+                    
+                    return {
+                        "status": "success",
+                        "uid": tag_id,
+                        "records": extracted_records
+                    }
+                else:
+                    return {
+                        "status": "read_error",
+                        "uid": tag_id,
+                        "records": []
+                    }
             
-            return {
-                "status": "success",
-                "uid": tag_id,
-                "records": extracted_records
-            }
-        else:
-            return {
-                "status": "read_error",
-                "uid": tag_id,
-                "records": []
-            }
+            # Tiny delay to prevent the Pi's CPU from spiking to 100%
+            time.sleep(0.1)
+
+        # If the loop finishes without returning, the 10 seconds are up.
+        return {"status": "timeout", "uid": None, "records": []}
 
     def cleanup(self):
-        """Frees up the GPIO pins when the server shuts down."""
         GPIO.cleanup()
