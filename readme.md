@@ -52,4 +52,3 @@ This script takes a standard text string from the user, wraps it in a standard N
 ```bash
 python write.py
 ```
-```
