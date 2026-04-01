@@ -1,0 +1,6 @@
+lgpio==0.2.2.0
+mfrc522==0.0.7
+ndeflib==0.3.3
+pi-rc522==2.3.0
+rpi-lgpio==0.6
+spidev==3.5
