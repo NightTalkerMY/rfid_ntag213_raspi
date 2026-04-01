@@ -1,8 +1,3 @@
-Here is a clean, professional `README.md` file tailored exactly for your hardware stack. It documents the specific Raspberry Pi 5 fix (`rpi-lgpio`) we implemented, lists the pinout clearly, and explains what the two scripts do. 
-
-You can copy this directly into your repository.
-
-```markdown
 # Raspberry Pi 5 NFC Reader/Writer
 
 This repository contains the core Python scripts required to reliably read and write NDEF-formatted text to NTAG213 NFC tags using an RC522 RFID module. 
