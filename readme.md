@@ -22,7 +22,7 @@ Connect the RC522 module to the Raspberry Pi 5 using the standard SPI interface:
 | **3.3V** | 3.3V | Power (Do NOT connect to 5V) |
 | **GND** | GND | Ground |
 
-![Raspberry Pi 5 Pinout Diagram](path/to/your/pinout_image.png)
+![Raspberry Pi 5 Pinout Diagram](https://github.com/user-attachments/assets/b8d6ae61-62c5-452f-9046-d57cf2778953)
 
 ## Software Installation
 
